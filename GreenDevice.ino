@@ -16,27 +16,16 @@
 #include <OneWire.h>
 #include <RtcDS3231.h>
 #include <DallasTemperature.h>  // library for temperature sensor
-
-
-
-
 RtcDS3231<TwoWire> Rtc(Wire);
 //#define sleepTime 180
 void Searcher();
 void Replacer(String *Replacee,int length);
 int month,day,year,hour,minute,second;
 uint8_t addr=0;
-
-
-
 bool shouldSaveConfig;
 bool data_reading_flag();
 //=================================================
 char mqtt_server[106];
-
-
-
-
 String Name(mqtt_server);
 String tester,API_KEY;
 String API_KEY2;
@@ -54,120 +43,32 @@ void printDateTime(const RtcDateTime& dt);
 #define BME_MISO D7 // Serial Data Out
 #define BME_MOSI D6 //Serial Data In
 #define BME_CS D5 // Chip Select  
-
-
-
-
 // Create the BME280 object
 BME280_SPI bme(BME_CS,BME_MOSI,BME_MISO,BME_SCK);    // software SPI
-
-
-
-
 long int   pressure,altitude,ambient_temperature,temperature,lux,moisture,humidity;
-
-
-
-
 #define common_power 3
 //temp related info
-
-
-
-
 int temperature_pin = 2; // often dosent work if pin is otherthan D3 or D4..........
-
-
-
-
 OneWire oneWire(temperature_pin);
-
-
-
-
 DallasTemperature sensors(&oneWire);
-
-
-
-
 double Celcius = 0.00;
-
-
-
-
 //moisture sensor related info
-
-
-
-
 int moisture_pin = A0;
 int reading_no=1;
 int moisture_reading;
-
-
-
-
 // luminosity related info
-
-
-
-
 //create object  LUX
-
-
-
-
 SFE_TSL2561 LUX;
-
-
-
-
 double lux_value;
-
-
-
-
 //following three are parameters for function getTiming
-
-
-
-
 //and have these particular datatypes with few predefined values
-
-
-
-
 //which have their already meant purpose                       SDA=> D2.   SCL=> D1
-
-
-
-
 unsigned char timer = 2;
-
-
-
-
 unsigned int ms;
-
-
-
-
 boolean sensitivity;
 //username and password for net connection,which esp shall search for
-
-
-
-
 //char  *username = "corph", *password = "corph@786";
-
-
-
-
 //80=http
-
-
-
-
 ESP8266WebServer server(80);
 char filename [] = "datalog.txt";
 String page;
@@ -177,64 +78,33 @@ File myDataFile;
 void setup() {
     
   // put your setup code here, to run once:
-
-
-
-
   Serial.begin(115200);
    Serial.print("compiled: ");
     Serial.print(__DATE__);
     Serial.println(__TIME__);
-
-
-
-
     Rtc.Begin();
-
-
-
-
     RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
     printDateTime(compiled);
     Serial.println();
-
-
-
-
     if (!Rtc.IsDateTimeValid())
     {
         if (Rtc.LastError() != 0)
         {
-
-
-
-
             Serial.print("RTC communications error = ");
             Serial.println(Rtc.LastError());
         }
         else
         {
             Serial.println("RTC lost confidence in the DateTime!");
-
-
-
-
             Rtc.SetDateTime(compiled);
         }
     }
-
-
-
 
     if (!Rtc.GetIsRunning())
     {
         Serial.println("RTC was not actively running, starting now");
         Rtc.SetIsRunning(true);
     }
-
-
-
-
     RtcDateTime now = Rtc.GetDateTime();
     if (now < compiled)
     {
@@ -249,10 +119,6 @@ void setup() {
     {
         Serial.println("RTC is the same as compile time! (not expected but all is fine)");
     }
-
-
-
-
     Rtc.Enable32kHzPin(false);
     Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   EEPROM.begin(4096);
@@ -261,50 +127,14 @@ void setup() {
   cool();
 //  String(API_KEY);
   pinMode(moisture_pin, INPUT);
-
-
-
-
 // ds18b20 must be taken in parasitic mode or pull up resistor should be defined
-
-
-
-
 //observed: it works if none of the  above is done,...but some narrate it gets hot if not done so
-
-
-
-
   Serial.println("\nConnected to Wifi \nAll info shall be on the website");
-
-
-
-
   Serial.println("connected to");
-
-
-
-
 //  Serial.println(username);
-
-
-
-
 //  Serial.println("IP ADDRESS for changin api key");
-
-
-
-
 //IP should be noted and followed in browser
-
-
-
-
 //  Serial.println(WiFi.localIP());
-
-
-
-
   EEPROM.begin(512);
 //  char c = EEPROM.read(0);
 //       API_KEY = c ;
@@ -328,16 +158,8 @@ void setup() {
 //    delay(1000);
 //  }
 API_KEY2=API_KEY;
-
-
-
-
 }
 void loop(){
-
-
-
-
    Serial.println("here come the api in loop:: "+API_KEY);
   delay(20);
   // put your main code here, to run repeatedly:
@@ -351,10 +173,6 @@ void loop(){
   moisture_reading_function();
   temperature_reading_function();
   lux_reading_function();
-
-
-
-
   BME();
 //  Searcher();
 //  delay(5000);
@@ -364,85 +182,33 @@ void loop(){
   sendData( String(lux_value), String(Celcius),String(moisture_reading),String(ambient_temperature),String(pressure),String(humidity),month,day,year,hour,minute,second);
   delay(1000);
 //  digitalWrite(common_power,LOW);
-
-
-
-
 // taking a nap to save battries
   
 //  delay(1000);
   
   ESP.deepSleep(atoi(sleepTime)*60*1000000);
-
-
-
-
 }
-
-
-
-
 //functions for particular sensor
-
-
-
-
 void moisture_reading_function() {
   
   delay(10);
   
   moisture_reading = analogRead(moisture_pin);
-
-
-
-
 //changing voltage (data) form sensor to percentage
-
-
-
-
   moisture_reading = map(moisture_reading, 1024, 0, 0, 100);
-
-
-
-
   Serial.println("moisture");
-
-
-
-
   Serial.println(moisture_reading);
   moisture=moisture_reading;
-
-
-
-
 }
-
-
-
-
 void temperature_reading_function() {
-
-
-
-
   delay(10);
-  
   sensors.begin();
-  
   sensors.requestTemperatures();
-  
   Celcius = sensors.getTempCByIndex(0);
-  
   Serial.println("Celcius");
   Serial.println(Celcius);
   temperature=Celcius;
 }
-
-
-
-
 void BME(){
     Serial.println("reading bme sensor");
 //    bme.readSensor();
@@ -453,33 +219,15 @@ void BME(){
     Serial.print(bme.getHumidity()); Serial.print("\t\t");
     Serial.print(bme.getTemperature_C()); Serial.print(" *C\t");
     Serial.print(bme.getTemperature_F()); Serial.println(" *F\t");
-
-
-
-
     humidity=bme.getHumidity();
     pressure=bme.getPressure_MB();
-    ambient_temperature=bme.getTemperature_C();
-    
+    ambient_temperature=bme.getTemperature_C();   
 }
-
-
-
-
 void lux_reading_function() {
-
-
-
-
   delay(10);
-  
   LUX.begin();
   LUX.setTiming(sensitivity, timer, ms);
   LUX.setPowerUp();
-
-
-
-
   unsigned int data1, data2;
   LUX.getData(data1, data2);
   // data1 and data2 corresponds to data of lingt and infrared rays,
@@ -493,10 +241,6 @@ void lux_reading_function() {
 void sendData(String(lux),String(Temperature),String( moisture),String(ambient_temperature),String(pressure),String(humidity),int month,int day,int year,int hour,int minute,int second) {  
         Serial.print("sending.....................\n");
         HTTPClient http;
-
-
-
-
         Searcher();
         
 //       Serial.println("temperatuer eeeeeeeeeeeeeeeeeeeeeeeey");
@@ -563,28 +307,16 @@ void cool(){
         size_t size = configFile.size();
         // Allocate a buffer to store contents of the file.
         std::unique_ptr<char[]> buf(new char[size]);
-
-
-
-
         configFile.readBytes(buf.get(), size);
         DynamicJsonBuffer jsonBuffer;
         JsonObject& json = jsonBuffer.parseObject(buf.get());
         json.printTo(Serial);
         if (json.success()) {
           Serial.println("\nparsed json");
-
-
-
-
           strcpy(deviceName, json["deviceName"]);
           strcpy(API_KEY_ch, json["API_KEY"]);
           strcpy(sleepTime, json["sleepTime"]);
 //          String(API_KEY);
-
-
-
-
         } else {
           Serial.println("failed to load json config");
         }
@@ -620,10 +352,6 @@ Humidity : "+String(humidity)+"
   WiFiManagerParameter custom_API_KEY(" API_KEY", " API_KEY", API_KEY_ch, 2000);
   WiFiManagerParameter custom_sleepTime("sleepTime", "sleepTime",sleepTime, 15);
   WiFiManagerParameter custom_text(data4);
-
-
-
-
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
@@ -651,10 +379,6 @@ Humidity : "+String(humidity)+"
   strcpy(API_KEY_ch, custom_API_KEY.getValue());
   strcpy(sleepTime, custom_sleepTime.getValue());
 //  sabi= sabi1.getValue();
-
-
-
-
   //save the custom parameters to FS
   if (shouldSaveConfig){
     Serial.println("saving config");
@@ -675,30 +399,13 @@ Humidity : "+String(humidity)+"
   }
   API_KEY=String(API_KEY_ch);
   Serial.println("no string attached"+API_KEY);
-  
   Searcher();
-
-
-
-
 //  handleWifiSave();
 Serial.println("coddddddddddddddddected...yeey :)");
 }        
 void Replacer(String *Replacee,int length){
-
-
-
-
   int b=0;
   String API_KEY2;
-
-
-
-
-
-
-
-
   for(int a=0;a<=length;a++){
     if(API_KEY.charAt(a)=='%'){
       a++;
@@ -715,10 +422,6 @@ void Replacer(String *Replacee,int length){
   }
 //   Serial.println("--------------------------$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$----------------------------------------");
 // Serial.println(API_KEY2);
-
-
-
-
   API_KEY=API_KEY2.charAt(0);
   for(int a=1;a<=API_KEY2.length()-2;a++){
     API_KEY+=API_KEY2.charAt(a);
@@ -754,10 +457,6 @@ void Searcher(){
     }
   }
   //for debugging
-
-
-
-
   int nele;
   Serial.println("length = ");
   Serial.println(length);
@@ -845,10 +544,6 @@ for(int b=0;b<=x;b++){
 // }
 //delay(1000);
 Replacer(Replacee,length);
-
-
-
-
 }
 //.........................................
 void data_saver(){
@@ -933,14 +628,6 @@ void data_reader(){
                   String(humidity)=String(buffer);
                   Serial.println("humidity");
                   Serial.println(humidity);
-
-
-
-
-
-
-
-
                    RTc();
                   month=int(buffer);
                   Serial.println("month");
@@ -1001,10 +688,6 @@ void printError(byte error)
 void printDateTime(const RtcDateTime& dt)
 {
     char datestring[20];
-
-
-
-
     snprintf_P(datestring,
             countof(datestring),
             PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
@@ -1030,44 +713,20 @@ void RTc ()
     {
         if (Rtc.LastError() != 0)
         {
-
-
-
-
             Serial.print("RTC communications error = ");
             Serial.println(Rtc.LastError());
             
         }
         else
         {
-
-
-
-
             Serial.println("RTC lost confidence in the DateTime!");
         }
     }
-
-
-
-
     RtcDateTime now = Rtc.GetDateTime();
     printDateTime(now);
     Serial.println();
-
-
-
-
   RtcTemperature temp = Rtc.GetTemperature();
   temp.Print(Serial);
-
-
-
-
     Serial.println("C");
-
-
-
-
     delay(10);
 }
