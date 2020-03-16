@@ -12,6 +12,15 @@ Modules :
 #include <RtcDS3231.h>
 #include <SparkFunTSL2561.h> // library for luminosity sensor
 #include <FS.h>   
+#include <ArduinoJson.h> 
+#include <ESP8266WiFi.h> // for wifiManager
+#include <DNSServer.h> // for wifiManager
+#include <ESP8266WebServer.h> // for wifiManager
+#include <WiFiManager.h>   
+#include <ESP8266WiFiMulti.h>
+#include <Arduino.h>
+#include <ESP8266HTTPClient.h>
+
 
 class Sensors {
 private:
@@ -152,302 +161,338 @@ public:
 
 };
 
-/*
+bool shouldSaveConfig = false;
 
-class DeviceSettings{
+//callback notifying us of the need to save config
+void saveConfigCallback() {
+    Serial.println("Should save config");
+    shouldSaveConfig = true;
+}
 
-    // include wifimanager and deepsleep
+class DeviceSettings {
+    char  deviceName[100], API_KEY[1000], customText[];
+    char sleepTime[10];
 
-    #include <ESP8266WiFiMulti.h>
-    #include <WiFiManager.h> //https://github.com/tzapu/WiFiManager
-    #include <ESP8266WebServer.h> //not sure if it is necessary for wifi manager
-    #include <ESP8266HTTPClient.h>//not sure if it is necessary for wifi manager
-    #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
-    #include <WiFiClient.h>
+public:
+    char* WIFIMANAGER() {
 
-    WiFiManager wifiManager;
+      strcpy(sleepTime,"30");
+      strcpy(deviceName,"Buol AgriTech");
 
-    private:
-
-        String  deviceName, API_KEY_ch, data4;
-        int sleepTime;
-
-
-
-        DeviceSettings(){
+        Serial.println("mounting FS...");
+        if (SPIFFS.begin()) {
+            Serial.println("mounted file system");
+            if (SPIFFS.exists("/config.json")) {
+                Serial.println("reading config file");
+                File configFile = SPIFFS.open("/config.json", "r");
+                if (configFile) {
+                    Serial.println("opened config file");
+                    size_t size = configFile.size();
+                    // Allocate a buffer to store contents of the file.
+                    std::unique_ptr<char[]> buf(new char[size]);
+                    configFile.readBytes(buf.get(), size);
+                    DynamicJsonBuffer jsonBuffer;
+                    JsonObject& json = jsonBuffer.parseObject(buf.get());
+                    json.printTo(Serial);
+                    if (json.success()) {
+                        Serial.println("\nparsed json");
+                        strcpy(deviceName, json["deviceName"]);
+                        strcpy(API_KEY, json["API_KEY"]);
+                        strcpy(sleepTime, json["sleepTime"]);
+                    }
+                    else {
+                        Serial.println("failed to load json config");
+                    }
+                    configFile.close();
+                }
+            }
         }
-    public:
+        else {
+            Serial.println("failed to mount FS");
+        }
 
-        void WIFIMANAGER() {
 
-            WiFiManagerParameter custom_deviceName("device name", "device name", deviceName, 20);
-            WiFiManagerParameter custom_API_KEY(" API_KEY", " API_KEY", API_KEY_ch, 2000);
-            WiFiManagerParameter custom_sleepTime("sleepTime", "sleepTime", sleepTime, 15);
-            WiFiManagerParameter custom_text(data4);
+        //end read
 
-            WiFiManager wifiManager;
 
-            wifiManager.setSaveConfigCallback(saveConfigCallback);
 
-            wifiManager.addParameter(&custom_deviceName);
-            wifiManager.addParameter(&custom_API_KEY);
-            wifiManager.addParameter(&custom_sleepTime);
-            wifiManager.addParameter(&custom_text);
-            wifiManager.setTimeout(100);
+        // The extra parameters to be configured (can be either global or just in the setup)
+        // After connecting, parameter.getValue() will get you the configured value
+        // id/name placeholder/prompt default length
+        WiFiManagerParameter custom_deviceName("deviceName", "Device name", deviceName, 100);
+        WiFiManagerParameter custom_API_KEY(" API_KEY", " API", API_KEY, 1000);
+        WiFiManagerParameter custom_sleepTime("sleepTime", "sleepTime", sleepTime, 15);
 
-            if (!wifiManager.autoConnect(deviceName, "password")) {
-                Serial.println("failed to connect and hit timeout");
-                delay(30);
-                //reset and try again, or maybe put it to deep sleep
-                data_saver();
-                delay(50);
+        //WiFiManager
+        //Local intialization. Once its business is done, there is no need to keep it around
+        WiFiManager wifiManager;
+        wifiManager.setConfigPortalTimeout(180);
+
+        //set config save notify callback
+        wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+
+        //add all your parameters here
+        wifiManager.addParameter(&custom_deviceName);
+        wifiManager.addParameter(&custom_API_KEY);
+        wifiManager.addParameter(&custom_sleepTime);
+
+        if (!wifiManager.autoConnect(deviceName, "password")) {
+            Serial.println("failed to connect and hit timeout");
+            delay(30);
+        }
+
+        //if you get here you have connected to the WiFi
+        Serial.println("connected...yeey :)");
+
+        //read updated parameters
+        strcpy(deviceName, custom_deviceName.getValue());
+        strcpy(API_KEY, custom_API_KEY.getValue());
+        strcpy(sleepTime, custom_sleepTime.getValue());
+
+        //save the custom parameters to FS
+        if (shouldSaveConfig) {
+            Serial.println("saving config\n");
+            DynamicJsonBuffer jsonBuffer;
+            JsonObject& json = jsonBuffer.createObject();
+            json["deviceName"] = deviceName;
+            json["API_KEY"] = API_KEY;
+            json["sleepTime"] = sleepTime;
+
+            File configFile = SPIFFS.open("/config.json", "w");
+            if (!configFile) {
+                Serial.println("failed to open config file for writing");
             }
 
-            Serial.println("connected...yeey :)");
-
-            //read updated parameters
-            strcpy(deviceName, custom_deviceName.getValue());
-            strcpy(API_KEY_ch, custom_API_KEY.getValue());
-            strcpy(sleepTime, custom_sleepTime.getValue());
-
+            json.printTo(Serial);
+            json.printTo(configFile);
+            configFile.close();
+            Serial.println("Saved\n");
         }
 
-        void DeepSleep(int Time_minutes) {
-            Serial.println("Going to deep sleep for ");
-            Serial.print(Time_minutes);
-            Serial.print(" minutes\n");
-
-            ESP.deepSleep(Time_minutes * 60 * 1000000);
-
+        if (!wifiManager.autoConnect(deviceName, "password")) {
+            Serial.println("failed to connect and hit timeout");
+            delay(30);
         }
 
+        return API_KEY;
+
+    }
+    void DeepSleep() {
+        Serial.println("Going to deep sleep for ");
+        Serial.print(atoi(sleepTime));
+        Serial.print(" minutes\n");
+
+        ESP.deepSleep(atoi(sleepTime) * 60 * 1000000);
+
+    }
 
 };
 
 class DataSender {
 
-    private:
+private:
 
-        int i = 0;
-        int time[6];
-        double lux_value;
-        long int BMEvalues[3];
-        int moistReading;
-        int humidity;
-        int pressure;
-        int ambientTemperature;
-        String API;
+    int i = 0;
+    int* time;
+    double lux_value;
+    long int* BMEvalues;
+    int moistReading;
+    int humidity;
+    int pressure;
+    int ambientTemperature;
+    String API;
+    String API_to_Send;
 
-        DataSender(int Time[6],
-            double Lux_value,
-            long int bMEvalues[3],
-            int MoistReading,
-            int Humidity,
-            int Pressure,
-            int AmbientTemperature,
-            String aPI;
-            ) {
+    String Replacer(String str) {
 
+        Serial.println("API from Replacer Funciton");
+        Serial.println(str);
 
-            while (i < 7) {
-                time[i] = Time[i];
-                i++;
+        str.replace("%humidity%", String(humidity));
+        str.replace("%lux%", String(lux_value));
+        str.replace("%ambient_temperature%", String(ambientTemperature));
+        str.replace("%pressure%", String(pressure));
+        str.replace("%moisture%", String(moistReading));
+        str.replace("%month%", String(time[0]));
+        str.replace("%year%", String(time[2]));
+        str.replace("%day%", String(time[1]));
+        str.replace("%hour%", String(time[3]));
+        str.replace("%minute%", String(time[4]));
+        str.replace("%second%", String(time[5]));
+
+        Serial.println("Replacement finished --------->>>>>>>>>>");
+
+        return str;
+
+    }
+
+public:
+
+    DataSender(int* Time,
+        double Lux_value,
+        long int* bMEvalues,
+        int MoistReading,
+        String aPI
+    ) {
+
+        time = Time;
+        BMEvalues = bMEvalues;
+
+        moistReading = MoistReading;
+        humidity = BMEvalues[0];
+        pressure = BMEvalues[1];
+        ambientTemperature = BMEvalues[2];
+        lux_value = Lux_value;
+        API = aPI;
+        Serial.println("API in the first constructor of class DataSender");
+        Serial.println(API);
+
+    }
+
+    DataSender(String api) {
+
+        API = api;
+        
+        Serial.println("API in the second constructor of dataSender");
+        Serial.println(API);
+
+    }
+
+    int SendAPI() {
+
+        API_to_Send = Replacer(API);
+
+        HTTPClient http;
+        Serial.println("api to be sent inside sendApi() after replacement");
+        Serial.println(API_to_Send);
+
+        http.begin(API_to_Send);
+
+        int httpCode = http.GET();
+
+        if (httpCode > 0) {
+            // HTTP header has been send and Server response header has been handled
+            Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+            // file found at server
+            if (httpCode == HTTP_CODE_OK) {
+                String payload = http.getString();
+                Serial.println(payload);
             }
-
-            i = 0;
-
-            while (i < 4) {
-                BMEvalues[i] = bMEvalues[i];
-            }
-
-            moistReading = MoistReading;
-            humidity = Humidity;
-            pressure = Pressure;
-            ambientTemperature = AmbientTemperature;
-            API = aPI;
-
         }
 
-    public:
+        else {
+            Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+            //                if (atoi(http.errorToString(httpCode).c_str()) != 200) 
+        }
+        http.end();
 
-        void SendToAPI() {
+        return httpCode;
+    }
+        int SendAPI_Second_saved() {
 
+        API_to_Send = API;
 
+        HTTPClient http;
+        Serial.println("api to be sent inside SendAPI_Second_saved() after replacement <<<<<<<<<<<<<<<");
+        Serial.println(API_to_Send);
+
+        http.begin(API_to_Send);
+
+        int httpCode = http.GET();
+
+        if (httpCode > 0) {
+            // HTTP header has been send and Server response header has been handled
+            Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+            // file found at server
+            if (httpCode == HTTP_CODE_OK) {
+                String payload = http.getString();
+                Serial.println(payload);
+            }
         }
 
+        else {
+            Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+            //                if (atoi(http.errorToString(httpCode).c_str()) != 200) 
+        }
+        http.end();
 
+        return httpCode;
+    }
+
+    String needAPI() {
+
+        return Replacer(API);
+    }
 
 };
-
-*/
-
 
 class Data {
 
 private:
-    int moisture_reading, pressure, humidity, ambient_temperature, lux_value, month, day, year, hour, minute, second;
-    String filename;
-    int Return_values[11];
+
+    String API;
+    String API_return[100];
+    String filename  = "datalogger.txt";
     int readingNo = 0;
-    struct ReadValues {
 
-        int Return_values[11];
-
-    };
-    ReadValues ReadValues1[];
 
 public:
-    Data(int Moisture, int Pressure, int Humidity, int Month, int Day, int Year, int Hour, int Minute, int Second, int lux) {
 
-        moisture_reading = Moisture;
-        pressure = Pressure;
-        humidity = Humidity;
-        month = Month;
-        day = Day;
-        year = Year;
-        hour = Hour;
-        minute = Minute;
-        second = Second;
-        lux_value = lux;
-    }
+    void WriteData(String api) {
+        API = api;
 
-    void WriteData() {
-        filename = "datalog.txt";
+        SPIFFS.begin();
 
-        File myDataFile = SPIFFS.open(filename, "W");
+        File myDataFile = SPIFFS.open(filename, "a+");
         if (!myDataFile)Serial.println("file open failed");
-
-        myDataFile.println(moisture_reading);
-        myDataFile.println(pressure);
-        myDataFile.println(humidity);
-        myDataFile.println(ambient_temperature);
-        myDataFile.println(lux_value);
-        myDataFile.println(month);
-        myDataFile.println(day);
-        myDataFile.println(year);
-        myDataFile.println(hour);
-        myDataFile.println(minute);
-        myDataFile.println(second);
-
+       
+        Serial.println("Writing the following");
+        Serial.println(API);
+        
+        myDataFile.println(API);
+//        myDataFile.commit();
         myDataFile.close();
 
-
-        Serial.println("Writing of data done\n");
+        Serial.println("Writing of data done \n");
 
     }
 
-    ReadValues* ReadData() {
+    String* ReadData() {
 
+        // convert them to set of APIs and they will be read and sent next time
+
+        SPIFFS.begin();
         File myDataFile = SPIFFS.open(filename, "r");
         if (!myDataFile) Serial.println("file open failed");
 
         delay(500);
 
-        char buffer[64];
-        readingNo = 0;
+        char buffer[1000];
+        
         while (myDataFile.available()) {
 
             Serial.println("file opened");
+
             int l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            lux_value = atoi(buffer);
+            buffer[l-1] = 0;
+            API = String(buffer);
 
-            Serial.println("lux_value");
-            Serial.println(lux_value);
+            Serial.println("API");
+            Serial.println(API);
 
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            moisture_reading = atoi(buffer);
-
-            Serial.println("moisture_reading");
-            Serial.println(moisture_reading);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            ambient_temperature = atoi(buffer);
-
-            Serial.println("ambient_temperature");
-            Serial.println(ambient_temperature);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            pressure = atoi(buffer);
-
-            Serial.println("pressure");
-            Serial.println(pressure);
-
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            humidity = atoi(buffer);
-
-            Serial.println("humidity");
-            Serial.println(humidity);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            month = atoi(buffer);
-
-            Serial.println("month");
-            Serial.println(month);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            day = atoi(buffer);
-
-            Serial.println("day");
-            Serial.println(day);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            year = atoi(buffer);
-
-            Serial.println("year");
-            Serial.println(year);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            hour = atoi(buffer);
-
-            Serial.println("hour");
-            Serial.println(hour);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            minute = atoi(buffer);
-
-            Serial.println("minute");
-            Serial.println(minute);
-
-            l = myDataFile.readBytesUntil('\n', buffer, sizeof(buffer));
-            buffer[l] = 0;
-            second = atoi(buffer);
-
-            Serial.println("second");
-            Serial.println(second);
-
-            //            Struct ReadValues ReadValues1[];
-
-            ReadValues1[readingNo].Return_values[0] = moisture_reading;
-            ReadValues1[readingNo].Return_values[1] = pressure;
-            ReadValues1[readingNo].Return_values[2] = humidity;
-            ReadValues1[readingNo].Return_values[3] = ambient_temperature;
-            ReadValues1[readingNo].Return_values[4] = lux_value;
-            ReadValues1[readingNo].Return_values[5] = month;
-            ReadValues1[readingNo].Return_values[6] = day;
-            ReadValues1[readingNo].Return_values[7] = year;
-            ReadValues1[readingNo].Return_values[8] = hour;
-            ReadValues1[readingNo].Return_values[9] = minute;
-            ReadValues1[readingNo].Return_values[10] = second;
-
+            API_return[readingNo] = API;
             readingNo++;
+            Serial.println("readingNo in read data");
+            Serial.println(readingNo);
+
         }
         myDataFile.close();                                   // Close the file
 
         Serial.println("File reading done\n");
+        
 
-        return ReadValues1;
+        return API_return;
     }
 
     void DeleteData() {
@@ -456,36 +501,126 @@ public:
         Serial.println("file deleted");
 
     }
+    int sizer(){
+        Serial.println("readingNo in  sizer");
+        Serial.println(readingNo);
+        return readingNo;
+        
+    }
+    void DeleteLine(int LineNumber) {
 
+
+    }
 
 };
 
+//Sensors testing(A0, D0, D7, D6, D5);
 
-//Sensors testing(D0, D7, D6, D5);
+DeviceSettings SetDevice;
 
-Data TestData(12, 22, 33, 4, 3, 2, 5, 6, 4, 7);
+char* AP;
+String API;
+String* ReadValues;
+Sensors SensorReady(A0, D0, D7, D6, D5);
+int DeepSleepTime;
+int moisture;
+int* TimeArray;
+double lux;
+long int* BmeValues;
+int returnCodeOfHTTP;
+int i;
+
+char* abc;
 void setup() {
-    // put your setup code here, to run once:
+
     Serial.begin(115200);
+    SPIFFS.begin();
+
+    AP = SetDevice.WIFIMANAGER();
+    API = String(AP);
+    Serial.println("API from WifiManager in setup(); ");
+    Serial.println(API);
+
+    //  int sleepTime_string = toInt(AP[1]);
+//    delay(15000);
 
 }
+
+
 void loop() {
-    // put your main code here, to run repeatedly:
-    Serial.print("\nhere i came");
-    TestData.WriteData();
-    TestData.ReadData();
-    delay(1500);
+    delay(6000);
+    moisture = SensorReady.SoilMoisture();
+    lux = SensorReady.Luminosity();
+    TimeArray = SensorReady.RealTimeClock();
+    BmeValues = SensorReady.BME();
+    Serial.println("here comes the debugger");
+    DataSender SendMe(TimeArray, lux, BmeValues, moisture, API);
+     
+    returnCodeOfHTTP = SendMe.SendAPI();
+
+    for (i = 0; i < 5; i++) {
+        if (returnCodeOfHTTP == 200)  break;
+        else returnCodeOfHTTP = SendMe.SendAPI();
+    }
+
+    Data SaveMe;
+
+    API = SendMe.needAPI();
+
+    
+    if (returnCodeOfHTTP != 200)  SaveMe.WriteData(API);
+    else{
+        ReadValues = SaveMe.ReadData();
+        int Size = SaveMe.sizer();
+        Serial.println("entering else,\n size of array =  ");
+        Serial.println(Size);
+
+        
+        // Now if it is 200(OK), then send all the data you have stored in the memory
+        
+        returnCodeOfHTTP=12;
+        for (i = 0; i < Size; ) {
+            Serial.println("loop iteration number ");
+            Serial.print(i);
+            Serial.println("\nsaved but to be sent");
+            Serial.println(ReadValues[i]);
+            DataSender SendMe_savedData(ReadValues[i]);
+            
+            for (int k = 0; k < 2; k++) {
+              Serial.print("looping to send the saved data\n");
+              if (returnCodeOfHTTP == 200){ 
+                
+                Serial.println("breaking the loop");
+                break;
+              
+              }
+              else{
+                
+                returnCodeOfHTTP = SendMe_savedData.SendAPI_Second_saved();
+                
+                Serial.println(" sending the data and code is ");
+                Serial.println(returnCodeOfHTTP);
+                
+              }
+            
+            }
+            
+            Serial.println("ended previous loop");
+            if (returnCodeOfHTTP == 200){
+              i++;  // and delete the read&sent line of API ----> to be done
+              returnCodeOfHTTP=12;
+            }
+            else break;
+            delay(1000);
+        
+        }
+        if(i >= Size){
+          SaveMe.DeleteData();
+        }
+    }
 
 
-    /* testing.SoilMoisture();
-    //    delay(1000000);
-    testing.BME();
-    testing.Luminosity();
-    testing.RealTimeClock();*/
-
-
-
-
-
+//    delay(1000);
+      SetDevice.DeepSleep();
 
 }
