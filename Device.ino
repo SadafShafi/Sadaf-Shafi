@@ -6,7 +6,7 @@ Modules :
 * DataSender  --> send via an api
 * Datasaver
 */
-
+#include <SPI.h>
 #include "cactus_io_BME280_SPI.h"
 #include <Wire.h>
 #include <RtcDS3231.h>
@@ -78,6 +78,7 @@ public:
         Serial.print(moistReading);
 
         return moistReading;
+        
     }
     long int* BME() {
 
@@ -86,6 +87,7 @@ public:
         state = bme.begin();
         if (!state) {
             Serial.println("Could not find a valid BME280 sensor, check wiring!");
+            while (1);
         }
 
         bme.setTempCal(-1);
@@ -93,7 +95,7 @@ public:
         bme.readSensor();
         humidity = bme.getHumidity();
         pressure = bme.getPressure_MB();
-        ambientTemperature = bme.getTemperature_C();
+        ambientTemperature = bme.getTemperature_C() - 3;
 
         BMEvalues[0] = humidity;
         BMEvalues[1] = pressure;
@@ -109,29 +111,39 @@ public:
 
     int Luminosity() {
 
-
+        delay(100);
         LUX.begin();
+        delay(100);
         LUX.setTiming(sensitivity, timer, ms);
+        delay(100);
         LUX.setPowerUp();
-
+        delay(100);
         LUX.getData(data1, data2);
 
         //data1 and data2 corresponds to data of lingt and infrared rays,
         //passing them to following function, unaltered, gives luminosity
-
+         delay(100);
         LUX.getLux(sensitivity, ms, data1, data2, lux_value);
 
-        Serial.print("\nLuminosity = ");
-        Serial.print(lux_value);
-
+        Serial.println("\nlux_value before map -----------------------------------------------------");
+        Serial.println(lux_value);
+//        lux_value = map(lux_value,20000,0,0,100);
+//        Serial.print("\nLuminosity = ");
+//        Serial.print(lux_value);
+//        
         return lux_value;
     }
 
     int* RealTimeClock() {
 
-
+        Serial.println("\n Here commeth the RTC ---------------------------------------------------------------------");
         RtcDS3231<TwoWire> Rtc(Wire);
+        
+        Rtc.Begin();
+        
         const RtcDateTime& dt = Rtc.GetDateTime();
+        Rtc.Enable32kHzPin(false);
+        Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone); 
         month = dt.Month();
         day = dt.Day();
         year = dt.Year();
@@ -161,6 +173,8 @@ public:
 
 };
 
+
+
 bool shouldSaveConfig = false;
 
 //callback notifying us of the need to save config
@@ -177,7 +191,7 @@ public:
     char* WIFIMANAGER() {
 
       strcpy(sleepTime,"30");
-      strcpy(deviceName,"Buol AgriTech");
+      strcpy(deviceName,"Buioul AgriTech");
 
         Serial.println("mounting FS...");
         if (SPIFFS.begin()) {
@@ -219,6 +233,7 @@ public:
         // The extra parameters to be configured (can be either global or just in the setup)
         // After connecting, parameter.getValue() will get you the configured value
         // id/name placeholder/prompt default length
+        
         WiFiManagerParameter custom_deviceName("deviceName", "Device name", deviceName, 100);
         WiFiManagerParameter custom_API_KEY(" API_KEY", " API", API_KEY, 1000);
         WiFiManagerParameter custom_sleepTime("sleepTime", "sleepTime", sleepTime, 15);
@@ -308,7 +323,8 @@ private:
 
         Serial.println("API from Replacer Funciton");
         Serial.println(str);
-
+        pressure = pressure/10;
+        
         str.replace("%humidity%", String(humidity));
         str.replace("%lux%", String(lux_value));
         str.replace("%ambient_temperature%", String(ambientTemperature));
@@ -320,6 +336,26 @@ private:
         str.replace("%hour%", String(time[3]));
         str.replace("%minute%", String(time[4]));
         str.replace("%second%", String(time[5]));
+
+        double VPD,SVP,AVP;
+
+        SVP = 610.78*exp((float(ambientTemperature)/(float(ambientTemperature+238.3)))*17.2694);
+        Serial.println(" here commeth the exponential");
+//        Serial.println(exp((float(ambientTemperature)/(float(ambientTemperature)+238.3))*17.2694));
+//        delay(5000);
+        SVP = SVP/1000;
+
+        VPD = SVP*(1-float(humidity)/100);
+
+        str.replace("%VPD%", String(VPD));
+
+        double dew;
+
+        dew = pow(float(humidity)/100.0,1.0/8.0)*(112.0 + 0.9*float(ambientTemperature))+ 0.1* float(ambientTemperature) - 112.0;
+        str.replace("%dew%", String(dew));
+        
+        Serial.println("dew = "+String(dew));
+        Serial.println("VPD = "+String(VPD));
 
         Serial.println("Replacement finished --------->>>>>>>>>>");
 
@@ -514,14 +550,13 @@ public:
 
 };
 
-//Sensors testing(A0, D0, D7, D6, D5);
 
 DeviceSettings SetDevice;
 
 char* AP;
 String API;
 String* ReadValues;
-Sensors SensorReady(A0, D0, D7, D6, D5);
+
 int DeepSleepTime;
 int moisture;
 int* TimeArray;
@@ -549,10 +584,16 @@ void setup() {
 
 void loop() {
     delay(6000);
-    moisture = SensorReady.SoilMoisture();
-    lux = SensorReady.Luminosity();
-    TimeArray = SensorReady.RealTimeClock();
-    BmeValues = SensorReady.BME();
+    for(int j=0;j<3;j++){
+      delay(100);
+      Sensors SensorReady(A0, D3, D7, D6, D5);
+      
+      moisture = SensorReady.SoilMoisture();
+      lux = SensorReady.Luminosity();
+      TimeArray = SensorReady.RealTimeClock();
+      BmeValues = SensorReady.BME();
+    }
+
     Serial.println("here comes the debugger");
     DataSender SendMe(TimeArray, lux, BmeValues, moisture, API);
      
