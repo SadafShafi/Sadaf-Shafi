@@ -1,8 +1,8 @@
-# Sadaf-Shafi
 
-GREEN DEVICE
+#GREEN DEVICE
 
-Device:
+
+
     This Device, as we decided, is called Green Device for ,1: Its prototype had a  Green colored body, and 2: It was initially designed for Green houses.
 
 
