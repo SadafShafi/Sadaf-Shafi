@@ -1,7 +1,6 @@
 
 
-![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/9ea05902-36d6-4a11-9c24-ab2b88fd4bd4_200x200.png)
-
+------------------------------------------------------ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/9ea05902-36d6-4a11-9c24-ab2b88fd4bd4_200x200.png)--------------------------------------------------
 
 #GREEN DEVICE
 
