@@ -38,4 +38,7 @@ Here are the picture of Hardware, one of them is with a black body and is versio
  ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180403.jpg)
  ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180407.jpg)
  ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180413.jpg)
- ![LOGO]()
+ 
+ and here is the black device(code is in device.ino)
+ 
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20200319_000639.jpg)
