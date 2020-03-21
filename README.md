@@ -29,3 +29,13 @@ Hardware :
 
 CODE:
 The code written in C++, in Arduino IDE
+
+Here are the picture of Hardware, one of them is with a black body and is version 2, without DS18b20, and is actually an updraded version of a device called Pulse (pulsegrow.com).I found their device quite good in hardware but not great at software so that served me as an inspiration to build its better version
+
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180348.jpg)
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180354.jpg)
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180358.jpg)
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180403.jpg)
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180407.jpg)
+ ![LOGO](https://github.com/SadafShafi/Sadaf-Shafi/blob/master/IMG_20190408_180413.jpg)
+ ![LOGO]()
