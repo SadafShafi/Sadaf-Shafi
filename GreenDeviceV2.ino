@@ -41,7 +41,7 @@ void saveConfigCallback () {
       shouldSaveConfig = true;
 }
 
-String apiKey = "HG509EGZ1VR7RE18";    
+String apiKey = "HG5xxxxxxxxxxxxx18";    
 WiFiClient client;
 const char* server = "api.thingspeak.com";
 
